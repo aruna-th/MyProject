@@ -1,0 +1,85 @@
+pipeline {
+    agent any
+
+    tools {
+        jdk "MyJava"
+        // Install the Maven version configured as "M3" and add it to the path.
+        maven "MyMaven"
+    }
+    
+    parameters{
+        string(name:'repoName',defaultValue:'https://github.com/aruna-th/DevOpsCodeDemo.git')
+    }
+
+    stages {
+        stage('Clone Repo') {
+            steps {
+                // Get some code from a GitHub repository
+                git '${repoName}'
+
+                // Run Maven on a Unix agent.
+                //sh "mvn -Dmaven.test.failure.ignore=true clean package"
+
+                // To run Maven on a Windows agent, use
+                // bat "mvn -Dmaven.test.failure.ignore=true clean package"
+            }
+
+            //post {
+                // If Maven was able to run the tests, even if some of the test
+                // failed, record the test results and archive the jar file.
+             //   success {
+             //       junit '**/target/surefire-reports/TEST-*.xml'
+             //       archiveArtifacts 'target/*.jar'
+              //  }
+            //}
+        }
+        
+        stage('Compile Code') {
+            steps{
+                sh "mvn compile"
+            }
+        }
+        
+        stage('Test Code') {
+            steps{
+                sh "mvn test"
+            }
+            
+            post{
+                success{
+                    junit 'target/surefire-reports/*.xml'
+                }
+            }
+        }
+        
+        stage('Code Coverage') {
+            steps{
+                sh "mvn cobertura:cobertura -Dcobertura.report.format=xml"
+            }
+            
+            post{
+                success{
+                    cobertura autoUpdateHealth: false, autoUpdateStability: false, coberturaReportFile: '**/target/site/cobertura/coverage.xml', conditionalCoverageTargets: '70, 0, 0', failUnhealthy: false, failUnstable: false, lineCoverageTargets: '80, 0, 0', maxNumberOfBuilds: 0, methodCoverageTargets: '80, 0, 0', onlyStable: false, sourceEncoding: 'ASCII', zoomCoverageChart: false
+                }
+            }
+        }
+        
+        stage('Code Review') {
+            steps{
+                sh "mvn pmd:pmd"
+            }
+            
+            post{
+                success{
+                    recordIssues(tools: [pmdParser(pattern: '**/pmd.xml')])
+                }
+            }
+        }
+        
+        stage('Package') {
+            steps{
+                sh "mvn package"
+            }
+        }
+    }
+}
